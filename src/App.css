@@ -8,18 +8,11 @@
 .app-logo {
   display: flex;
   align-items: center;
-  gap: 10px;
 }
 
-.app-logo svg {
-  color: var(--accent);
-}
-
-.app-logo h1 {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.5px;
+.app-logo-img {
+  height: 48px;
+  width: auto;
 }
 
 .header-actions {

@@ -41,11 +41,7 @@ export function Auth({ onAuth, onGoogleSignIn }: AuthProps) {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-header">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="auth-icon">
-            <path d="M3 3v18h18" />
-            <path d="M7 16h2v-4H7zM12 16h2V8h-2zM17 16h2v-6h-2z" />
-          </svg>
-          <h1>Apollo Polls</h1>
+          <img src={new URL('../assets/better-logo.png', import.meta.url).href} alt="Apollo" className="auth-logo-img" />
           <p>{isSignUp ? 'Create an account to get started' : 'Sign in to your account'}</p>
         </div>
 

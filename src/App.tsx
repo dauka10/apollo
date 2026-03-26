@@ -72,11 +72,7 @@ function App() {
     <>
       <header className="app-header">
         <div className="app-logo">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 3v18h18" />
-            <path d="M7 16h2v-4H7zM12 16h2V8h-2zM17 16h2v-6h-2z" />
-          </svg>
-          <h1>Apollo Polls</h1>
+          <img src={new URL('./assets/better-logo.png', import.meta.url).href} alt="Apollo" className="app-logo-img" />
         </div>
         <div className="header-actions">
           <span className="user-email">{user.email}</span>
