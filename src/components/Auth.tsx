@@ -41,7 +41,7 @@ export function Auth({ onAuth, onGoogleSignIn }: AuthProps) {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-header">
-          <img src={new URL('../assets/better-logo.png', import.meta.url).href} alt="Apollo" className="auth-logo-img" />
+          <img src={new URL('../assets/immaculate-logo.png', import.meta.url).href} alt="Apollo" className="auth-logo-img" />
           <p>{isSignUp ? 'Create an account to get started' : 'Sign in to your account'}</p>
         </div>
 

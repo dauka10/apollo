@@ -5,13 +5,15 @@ import './SurveyView.css';
 interface SurveyViewProps {
   poll: Poll;
   onBack: () => void;
-  onVote: (pollId: string, answers: Record<string, string>, freeTextAnswers: Record<string, string>) => void;
+  onVote: (pollId: string, answers: Record<string, string>, freeTextAnswers: Record<string, string>) => void | Promise<void>;
+  hasVoted?: boolean;
 }
 
-export function SurveyView({ poll, onBack, onVote }: SurveyViewProps) {
+export function SurveyView({ poll, onBack, onVote, hasVoted }: SurveyViewProps) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [freeTextAnswers, setFreeTextAnswers] = useState<Record<string, string>>({});
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState(hasVoted ?? false);
+  const [submitting, setSubmitting] = useState(false);
 
   const allAnswered = poll.questions.every((q) =>
     q.type === 'free_response'
@@ -19,10 +21,12 @@ export function SurveyView({ poll, onBack, onVote }: SurveyViewProps) {
       : !!answers[q.id]
   );
 
-  const handleSubmit = () => {
-    if (allAnswered) {
-      onVote(poll.id, answers, freeTextAnswers);
+  const handleSubmit = async () => {
+    if (allAnswered && !submitting) {
+      setSubmitting(true);
+      await onVote(poll.id, answers, freeTextAnswers);
       setSubmitted(true);
+      setSubmitting(false);
     }
   };
 
@@ -133,9 +137,9 @@ export function SurveyView({ poll, onBack, onVote }: SurveyViewProps) {
           <button
             className="survey-submit-btn"
             onClick={handleSubmit}
-            disabled={!allAnswered}
+            disabled={!allAnswered || submitting}
           >
-            Submit Responses
+            {submitting ? 'Submitting...' : 'Submit Responses'}
           </button>
         </div>
       )}

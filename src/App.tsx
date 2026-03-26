@@ -12,7 +12,7 @@ const tabs: TabFilter[] = ['All', 'Homework', 'Research', 'Else'];
 
 function App() {
   const { user, loading: authLoading, signUp, signIn, signInWithGoogle, signOut } = useAuth();
-  const { polls, loading: pollsLoading, createPoll, submitResponses } = usePolls();
+  const { polls, loading: pollsLoading, votedPollIds, createPoll, submitResponses } = usePolls(user?.id);
   const [activeTab, setActiveTab] = useState<TabFilter>('All');
   const [showCreate, setShowCreate] = useState(false);
   const [openPollId, setOpenPollId] = useState<string | null>(null);
@@ -64,6 +64,7 @@ function App() {
         poll={openPoll}
         onBack={() => setOpenPollId(null)}
         onVote={handleVote}
+        hasVoted={votedPollIds.has(openPoll.id)}
       />
     );
   }
@@ -72,7 +73,7 @@ function App() {
     <>
       <header className="app-header">
         <div className="app-logo">
-          <img src={new URL('./assets/better-logo.png', import.meta.url).href} alt="Apollo" className="app-logo-img" />
+          <img src={new URL('./assets/immaculate-logo.png', import.meta.url).href} alt="Apollo" className="app-logo-img" />
         </div>
         <div className="header-actions">
           <span className="user-email">{user.email}</span>

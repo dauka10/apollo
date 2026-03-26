@@ -2,9 +2,10 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Poll, PollCategory, QuestionType } from '../types';
 
-export function usePolls() {
+export function usePolls(userId?: string) {
   const [polls, setPolls] = useState<Poll[]>([]);
   const [loading, setLoading] = useState(true);
+  const [votedPollIds, setVotedPollIds] = useState<Set<string>>(new Set());
 
   const fetchPolls = useCallback(async () => {
     setLoading(true);
@@ -106,9 +107,19 @@ export function usePolls() {
       };
     });
 
+    // Fetch which polls the current user has already voted on
+    if (userId) {
+      const { data: userResponses } = await supabase
+        .from('responses')
+        .select('poll_id')
+        .eq('user_id', userId);
+      const voted = new Set((userResponses ?? []).map((r) => r.poll_id));
+      setVotedPollIds(voted);
+    }
+
     setPolls(mappedPolls);
     setLoading(false);
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     fetchPolls();
@@ -213,9 +224,10 @@ export function usePolls() {
       return { error };
     }
 
+    setVotedPollIds((prev) => new Set(prev).add(pollId));
     await fetchPolls();
     return { error: null };
   };
 
-  return { polls, loading, createPoll, submitResponses, refetch: fetchPolls };
+  return { polls, loading, votedPollIds, createPoll, submitResponses, refetch: fetchPolls };
 }
