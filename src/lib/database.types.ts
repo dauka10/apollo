@@ -78,6 +78,7 @@ export interface Database {
           text: string;
           type: 'multiple_choice' | 'free_response';
           allow_other: boolean;
+          allow_dynamic: boolean;
           sort_order: number;
         };
         Insert: {
@@ -86,6 +87,7 @@ export interface Database {
           text: string;
           type?: 'multiple_choice' | 'free_response';
           allow_other?: boolean;
+          allow_dynamic?: boolean;
           sort_order: number;
         };
         Update: {
@@ -94,6 +96,7 @@ export interface Database {
           text?: string;
           type?: 'multiple_choice' | 'free_response';
           allow_other?: boolean;
+          allow_dynamic?: boolean;
           sort_order?: number;
         };
         Relationships: [

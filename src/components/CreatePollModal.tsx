@@ -8,6 +8,7 @@ interface QuestionDraft {
   type: QuestionType;
   options: string[];
   allowOther: boolean;
+  allowDynamic: boolean;
 }
 
 interface CreatePollModalProps {
@@ -17,11 +18,11 @@ interface CreatePollModalProps {
     description: string;
     category: PollCategory;
     thumbnailUrl?: string;
-    questions: { text: string; type: QuestionType; options: string[]; allowOther: boolean }[];
+    questions: { text: string; type: QuestionType; options: string[]; allowOther: boolean; allowDynamic: boolean }[];
   }) => void | Promise<void>;
 }
 
-const emptyQuestion = (): QuestionDraft => ({ text: '', type: 'multiple_choice', options: ['', ''], allowOther: false });
+const emptyQuestion = (): QuestionDraft => ({ text: '', type: 'multiple_choice', options: ['', ''], allowOther: false, allowDynamic: false });
 
 export function CreatePollModal({ onClose, onCreate }: CreatePollModalProps) {
   const [title, setTitle] = useState('');
@@ -141,6 +142,7 @@ export function CreatePollModal({ onClose, onCreate }: CreatePollModalProps) {
         type: q.type,
         options: q.type === 'multiple_choice' ? q.options.filter((o) => o.trim()) : [],
         allowOther: q.type === 'multiple_choice' ? q.allowOther : false,
+        allowDynamic: q.type === 'multiple_choice' ? q.allowDynamic : false,
       })),
     });
     setSubmitting(false);
@@ -331,6 +333,18 @@ export function CreatePollModal({ onClose, onCreate }: CreatePollModalProps) {
                         }}
                       />
                       <span>Allow "Other" answer (students write their own)</span>
+                    </label>
+                    <label className="allow-other-toggle">
+                      <input
+                        type="checkbox"
+                        checked={q.allowDynamic}
+                        onChange={(e) => {
+                          const updated = [...questions];
+                          updated[qIndex] = { ...updated[qIndex], allowDynamic: e.target.checked };
+                          setQuestions(updated);
+                        }}
+                      />
+                      <span>Allow dynamic multiple answers (students distribute % across options)</span>
                     </label>
                   </>
                 ) : (

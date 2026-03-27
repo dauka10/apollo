@@ -13,14 +13,23 @@ export interface FreeTextResponse {
   createdAt: number;
 }
 
+export interface DynamicVote {
+  optionId: string;
+  avgPct: number;
+  count: number;
+}
+
 export interface Question {
   id: string;
   text: string;
   type: QuestionType;
   allowOther: boolean;
+  allowDynamic: boolean;
   options: QuestionOption[];
   freeTextResponses: FreeTextResponse[];
   otherResponses: FreeTextResponse[];
+  dynamicResults: DynamicVote[];
+  dynamicVoterCount: number;
 }
 
 export interface Poll {

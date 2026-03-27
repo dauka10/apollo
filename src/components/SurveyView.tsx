@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import type { Poll } from '../types';
-import { ResultCharts } from './ResultCharts';
 import './SurveyView.css';
 
 interface SurveyViewProps {
   poll: Poll;
   onBack: () => void;
-  onVote: (pollId: string, answers: Record<string, string>, freeTextAnswers: Record<string, string>, otherTextAnswers: Record<string, string>) => void | Promise<void>;
+  onVote: (pollId: string, answers: Record<string, string>, freeTextAnswers: Record<string, string>, otherTextAnswers: Record<string, string>, dynamicAnswers: Record<string, Record<string, number>>) => void | Promise<void>;
   hasVoted?: boolean;
 }
 
@@ -15,12 +14,24 @@ export function SurveyView({ poll, onBack, onVote, hasVoted }: SurveyViewProps) 
   const [freeTextAnswers, setFreeTextAnswers] = useState<Record<string, string>>({});
   const [otherTextAnswers, setOtherTextAnswers] = useState<Record<string, string>>({});
   const [otherSelected, setOtherSelected] = useState<Record<string, boolean>>({});
+  // dynamicAnswers: questionId -> { optionId: percentage }
+  const [dynamicAnswers, setDynamicAnswers] = useState<Record<string, Record<string, number>>>({});
+  const [dynamicMode, setDynamicMode] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(hasVoted ?? false);
   const [submitting, setSubmitting] = useState(false);
+
+  const getDynamicSum = (questionId: string) => {
+    const pcts = dynamicAnswers[questionId] ?? {};
+    return Object.values(pcts).reduce((s, v) => s + v, 0);
+  };
 
   const allAnswered = poll.questions.every((q) => {
     if (q.type === 'free_response') {
       return (freeTextAnswers[q.id] ?? '').trim().length > 0;
+    }
+    if (dynamicMode[q.id]) {
+      const sum = getDynamicSum(q.id);
+      return sum === 100;
     }
     if (otherSelected[q.id]) {
       return (otherTextAnswers[q.id] ?? '').trim().length > 0;
@@ -31,7 +42,7 @@ export function SurveyView({ poll, onBack, onVote, hasVoted }: SurveyViewProps) 
   const handleSubmit = async () => {
     if (allAnswered && !submitting) {
       setSubmitting(true);
-      await onVote(poll.id, answers, freeTextAnswers, otherTextAnswers);
+      await onVote(poll.id, answers, freeTextAnswers, otherTextAnswers, dynamicAnswers);
       setSubmitted(true);
       setSubmitting(false);
     }
@@ -108,98 +119,218 @@ export function SurveyView({ poll, onBack, onVote, hasVoted }: SurveyViewProps) 
           const otherCount = question.otherResponses.length;
           const totalVotes = question.options.reduce((s, o) => s + o.votes, 0) + otherCount;
           const isOther = otherSelected[question.id];
+          const isDynamic = dynamicMode[question.id];
+          const dynamicSum = getDynamicSum(question.id);
 
           return (
             <div key={question.id} className="survey-question">
               <h3 className="question-number">Question {qIndex + 1}</h3>
               <p className="question-text">{question.text}</p>
-              <div className="question-options">
-                {question.options.map((option) => {
-                  const isSelected = !isOther && answers[question.id] === option.id;
-                  const pct = totalVotes > 0 ? (option.votes / totalVotes) * 100 : 0;
 
-                  return (
-                    <button
-                      key={option.id}
-                      className={`survey-option ${isSelected ? 'selected' : ''} ${submitted ? 'voted' : ''}`}
-                      onClick={() => {
-                        if (!submitted) {
-                          setAnswers({ ...answers, [question.id]: option.id });
-                          setOtherSelected({ ...otherSelected, [question.id]: false });
-                        }
-                      }}
-                      disabled={submitted}
-                    >
-                      {submitted && (
-                        <div className="survey-option-bar" style={{ width: `${pct}%` }} />
-                      )}
-                      <span className="survey-option-text">{option.text}</span>
-                      {submitted && (
-                        <span className="survey-option-pct">{Math.round(pct)}%</span>
-                      )}
-                    </button>
-                  );
-                })}
+              {/* Mode toggle: single pick vs dynamic distribution */}
+              {question.allowDynamic && !submitted && (
+                <div className="answer-mode-toggle">
+                  <button
+                    className={`mode-btn ${!isDynamic ? 'active' : ''}`}
+                    onClick={() => {
+                      setDynamicMode({ ...dynamicMode, [question.id]: false });
+                      const { [question.id]: _, ...rest } = dynamicAnswers;
+                      setDynamicAnswers(rest);
+                    }}
+                  >
+                    Pick one
+                  </button>
+                  <button
+                    className={`mode-btn ${isDynamic ? 'active' : ''}`}
+                    onClick={() => {
+                      setDynamicMode({ ...dynamicMode, [question.id]: true });
+                      // Clear single-pick answer for this question
+                      const { [question.id]: _, ...restA } = answers;
+                      setAnswers(restA);
+                      setOtherSelected({ ...otherSelected, [question.id]: false });
+                    }}
+                  >
+                    Distribute %
+                  </button>
+                </div>
+              )}
 
-                {question.allowOther && !submitted && (
-                  <>
-                    <button
-                      className={`survey-option ${isOther ? 'selected' : ''}`}
-                      onClick={() => {
-                        setOtherSelected({ ...otherSelected, [question.id]: true });
-                        const { [question.id]: _, ...rest } = answers;
-                        setAnswers(rest);
-                      }}
-                    >
-                      <span className="survey-option-text">Other</span>
-                    </button>
-                    {isOther && (
-                      <input
-                        type="text"
-                        className="other-text-input"
-                        placeholder="Type your answer..."
-                        value={otherTextAnswers[question.id] ?? ''}
-                        onChange={(e) =>
-                          setOtherTextAnswers({ ...otherTextAnswers, [question.id]: e.target.value })
-                        }
-                        autoFocus
-                      />
-                    )}
-                  </>
-                )}
-
-                {question.allowOther && submitted && (
-                  (() => {
-                    const pct = totalVotes > 0 ? (otherCount / totalVotes) * 100 : 0;
+              {/* Dynamic percentage inputs */}
+              {isDynamic && !submitted && (
+                <div className="dynamic-inputs">
+                  {question.options.map((option) => {
+                    const val = dynamicAnswers[question.id]?.[option.id] ?? 0;
                     return (
-                      <>
-                        <button className={`survey-option ${isOther ? 'selected' : ''} voted`} disabled>
-                          <div className="survey-option-bar" style={{ width: `${pct}%` }} />
-                          <span className="survey-option-text">Other</span>
-                          <span className="survey-option-pct">{Math.round(pct)}%</span>
-                        </button>
-                        {(question.otherResponses.length > 0 || isOther) && (
-                          <div className="other-answers-section">
-                            <span className="other-answers-label">Other answers</span>
-                            <div className="responses-list">
-                              {isOther && otherTextAnswers[question.id]?.trim() && (
-                                <div className="response-bubble your-other">
-                                  {otherTextAnswers[question.id]}
-                                </div>
-                              )}
-                              {question.otherResponses.map((r) => (
-                                <div key={r.id} className="response-bubble">
-                                  {r.text}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </>
+                      <div key={option.id} className="dynamic-input-row">
+                        <span className="dynamic-input-label">{option.text}</span>
+                        <input
+                          type="number"
+                          className="dynamic-input"
+                          min={0}
+                          max={100}
+                          value={val || ''}
+                          placeholder="0"
+                          onChange={(e) => {
+                            const num = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+                            setDynamicAnswers({
+                              ...dynamicAnswers,
+                              [question.id]: {
+                                ...(dynamicAnswers[question.id] ?? {}),
+                                [option.id]: num,
+                              },
+                            });
+                          }}
+                        />
+                        <span className="dynamic-input-pct">%</span>
+                      </div>
                     );
-                  })()
-                )}
-              </div>
+                  })}
+                  <div className={`dynamic-sum ${dynamicSum === 100 ? 'valid' : dynamicSum > 100 ? 'over' : ''}`}>
+                    Total: {dynamicSum}% {dynamicSum === 100 ? '' : dynamicSum > 100 ? '(over 100!)' : `(${100 - dynamicSum}% remaining)`}
+                  </div>
+                </div>
+              )}
+
+              {/* Dynamic results (radial bar only) — shown when submitted and question has dynamic data */}
+              {submitted && question.dynamicResults.length > 0 && (
+                <div className="dynamic-results">
+                  <span className="dynamic-results-label">
+                    Average distribution ({question.dynamicVoterCount} voter{question.dynamicVoterCount !== 1 ? 's' : ''})
+                  </span>
+                  <div className="dynamic-radial-wrap">
+                    <svg viewBox="0 0 200 200" className="chart-svg dynamic-radial-svg">
+                      {question.options.map((option, i) => {
+                        const dbResult = question.dynamicResults.find((d) => d.optionId === option.id);
+                        const avgPct = dbResult ? dbResult.avgPct : 0;
+                        const r = 88 - i * 18;
+                        if (r <= 10) return null;
+                        const circumference = 2 * Math.PI * r;
+                        const filled = circumference * (avgPct / 100);
+                        const colors = ['#ca641f', '#5ba4cf', '#7c6fe0', '#5bbd72', '#e07c6f', '#e0c56f'];
+                        return (
+                          <g key={option.id}>
+                            <circle cx={100} cy={100} r={r} fill="none" stroke="var(--border)" strokeWidth={14} opacity={0.3} />
+                            <circle
+                              cx={100} cy={100} r={r}
+                              fill="none"
+                              stroke={colors[i % colors.length]}
+                              strokeWidth={14}
+                              strokeDasharray={`${filled} ${circumference - filled}`}
+                              strokeDashoffset={circumference / 4}
+                              strokeLinecap="round"
+                            />
+                          </g>
+                        );
+                      })}
+                    </svg>
+                    <div className="dynamic-radial-legend">
+                      {question.options.map((option, i) => {
+                        const dbResult = question.dynamicResults.find((d) => d.optionId === option.id);
+                        const avgPct = dbResult ? dbResult.avgPct : 0;
+                        const colors = ['#ca641f', '#5ba4cf', '#7c6fe0', '#5bbd72', '#e07c6f', '#e0c56f'];
+                        return (
+                          <div key={option.id} className="chart-legend-item">
+                            <span className="chart-legend-dot" style={{ background: colors[i % colors.length] }} />
+                            <span className="chart-legend-label">{option.text}</span>
+                            <span className="chart-legend-value">{Math.round(avgPct)}%</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Standard single-pick options */}
+              {!isDynamic && (
+                <div className="question-options">
+                  {question.options.map((option) => {
+                    const isSelected = !isOther && answers[question.id] === option.id;
+                    const pct = totalVotes > 0 ? (option.votes / totalVotes) * 100 : 0;
+
+                    return (
+                      <button
+                        key={option.id}
+                        className={`survey-option ${isSelected ? 'selected' : ''} ${submitted ? 'voted' : ''}`}
+                        onClick={() => {
+                          if (!submitted) {
+                            setAnswers({ ...answers, [question.id]: option.id });
+                            setOtherSelected({ ...otherSelected, [question.id]: false });
+                          }
+                        }}
+                        disabled={submitted}
+                      >
+                        {submitted && (
+                          <div className="survey-option-bar" style={{ width: `${pct}%` }} />
+                        )}
+                        <span className="survey-option-text">{option.text}</span>
+                        {submitted && (
+                          <span className="survey-option-pct">{Math.round(pct)}%</span>
+                        )}
+                      </button>
+                    );
+                  })}
+
+                  {question.allowOther && !submitted && (
+                    <>
+                      <button
+                        className={`survey-option ${isOther ? 'selected' : ''}`}
+                        onClick={() => {
+                          setOtherSelected({ ...otherSelected, [question.id]: true });
+                          const { [question.id]: _, ...rest } = answers;
+                          setAnswers(rest);
+                        }}
+                      >
+                        <span className="survey-option-text">Other</span>
+                      </button>
+                      {isOther && (
+                        <input
+                          type="text"
+                          className="other-text-input"
+                          placeholder="Type your answer..."
+                          value={otherTextAnswers[question.id] ?? ''}
+                          onChange={(e) =>
+                            setOtherTextAnswers({ ...otherTextAnswers, [question.id]: e.target.value })
+                          }
+                          autoFocus
+                        />
+                      )}
+                    </>
+                  )}
+
+                  {question.allowOther && submitted && (
+                    (() => {
+                      const pct = totalVotes > 0 ? (otherCount / totalVotes) * 100 : 0;
+                      return (
+                        <>
+                          <button className={`survey-option ${isOther ? 'selected' : ''} voted`} disabled>
+                            <div className="survey-option-bar" style={{ width: `${pct}%` }} />
+                            <span className="survey-option-text">Other</span>
+                            <span className="survey-option-pct">{Math.round(pct)}%</span>
+                          </button>
+                          {(question.otherResponses.length > 0 || isOther) && (
+                            <div className="other-answers-section">
+                              <span className="other-answers-label">Other answers</span>
+                              <div className="responses-list">
+                                {isOther && otherTextAnswers[question.id]?.trim() && (
+                                  <div className="response-bubble your-other">
+                                    {otherTextAnswers[question.id]}
+                                  </div>
+                                )}
+                                {question.otherResponses.map((r) => (
+                                  <div key={r.id} className="response-bubble">
+                                    {r.text}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -208,7 +339,7 @@ export function SurveyView({ poll, onBack, onVote, hasVoted }: SurveyViewProps) 
       {!submitted && (
         <div className="survey-submit-area">
           <span className="survey-progress">
-            {Object.keys(answers).length + Object.keys(freeTextAnswers).filter((k) => freeTextAnswers[k]?.trim()).length + Object.keys(otherTextAnswers).filter((k) => otherSelected[k] && otherTextAnswers[k]?.trim()).length} of {poll.questions.length} answered
+            {Object.keys(answers).length + Object.keys(freeTextAnswers).filter((k) => freeTextAnswers[k]?.trim()).length + Object.keys(otherTextAnswers).filter((k) => otherSelected[k] && otherTextAnswers[k]?.trim()).length + Object.keys(dynamicAnswers).filter((k) => getDynamicSum(k) === 100).length} of {poll.questions.length} answered
           </span>
           <button
             className="survey-submit-btn"
@@ -230,7 +361,6 @@ export function SurveyView({ poll, onBack, onVote, hasVoted }: SurveyViewProps) 
         </div>
       )}
 
-      {submitted && <ResultCharts questions={poll.questions} />}
     </div>
   );
 }

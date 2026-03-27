@@ -65,13 +65,29 @@ export function usePolls(userId?: string) {
     const mcQuestionIds = new Set(
       (questions ?? []).filter((q) => q.type === 'multiple_choice').map((q) => q.id)
     );
+    // Build set of dynamic question IDs
+    const dynamicQuestionIds = new Set(
+      (questions ?? []).filter((q) => q.allow_dynamic).map((q) => q.id)
+    );
 
     // Collect free text responses per question (for free_response questions)
     const freeTextByQuestion: Record<string, { id: string; text: string; createdAt: number }[]> = {};
     // Collect "other" text responses per question (for multiple_choice questions with allow_other)
     const otherByQuestion: Record<string, { id: string; text: string; createdAt: number }[]> = {};
+    // Collect dynamic percentage responses per question
+    const dynamicByQuestion: Record<string, Record<string, number>[]> = {};
+
     for (const r of responseCounts ?? []) {
       if (r.free_text) {
+        // Check if this is a dynamic response (JSON starting with '{')
+        if (dynamicQuestionIds.has(r.question_id) && r.free_text.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(r.free_text) as Record<string, number>;
+            if (!dynamicByQuestion[r.question_id]) dynamicByQuestion[r.question_id] = [];
+            dynamicByQuestion[r.question_id].push(parsed);
+            continue;
+          } catch { /* not JSON, treat as other */ }
+        }
         const target = mcQuestionIds.has(r.question_id) ? otherByQuestion : freeTextByQuestion;
         if (!target[r.question_id]) target[r.question_id] = [];
         target[r.question_id].push({
@@ -117,6 +133,7 @@ export function usePolls(userId?: string) {
           text: q.text,
           type: (q.type ?? 'multiple_choice') as QuestionType,
           allowOther: q.allow_other ?? false,
+          allowDynamic: q.allow_dynamic ?? false,
           options: (options ?? [])
             .filter((o) => o.question_id === q.id)
             .map((o) => ({
@@ -126,6 +143,16 @@ export function usePolls(userId?: string) {
             })),
           freeTextResponses: freeTextByQuestion[q.id] ?? [],
           otherResponses: otherByQuestion[q.id] ?? [],
+          dynamicVoterCount: (dynamicByQuestion[q.id] ?? []).length,
+          dynamicResults: (() => {
+            const votes = dynamicByQuestion[q.id] ?? [];
+            if (votes.length === 0) return [];
+            const qOptions = (options ?? []).filter((o) => o.question_id === q.id);
+            return qOptions.map((o) => {
+              const total = votes.reduce((s, v) => s + (v[o.id] ?? 0), 0);
+              return { optionId: o.id, avgPct: total / votes.length, count: votes.length };
+            });
+          })(),
         })),
       };
     });
@@ -156,7 +183,7 @@ export function usePolls(userId?: string) {
       description: string;
       category: PollCategory;
       thumbnailUrl?: string;
-      questions: { text: string; type: QuestionType; options: string[]; allowOther: boolean }[];
+      questions: { text: string; type: QuestionType; options: string[]; allowOther: boolean; allowDynamic: boolean }[];
     }
   ) => {
     const { data: poll, error: pollError } = await supabase
@@ -186,6 +213,7 @@ export function usePolls(userId?: string) {
           text: q.text,
           type: q.type,
           allow_other: q.allowOther ?? false,
+          allow_dynamic: q.allowDynamic ?? false,
           sort_order: qi,
         })
         .select()
@@ -224,7 +252,8 @@ export function usePolls(userId?: string) {
     pollId: string,
     answers: Record<string, string>, // questionId -> optionId (for multiple choice)
     freeTextAnswers: Record<string, string> = {}, // questionId -> text (for free response)
-    otherTextAnswers: Record<string, string> = {} // questionId -> text (for MC "other" option)
+    otherTextAnswers: Record<string, string> = {}, // questionId -> text (for MC "other" option)
+    dynamicAnswers: Record<string, Record<string, number>> = {} // questionId -> { optionId: pct }
   ) => {
     const mcInserts = Object.entries(answers).map(([questionId, optionId]) => ({
       poll_id: pollId,
@@ -251,7 +280,14 @@ export function usePolls(userId?: string) {
         user_id: userId,
       }));
 
-    const allInserts = [...mcInserts, ...ftInserts, ...otherInserts];
+    const dynamicInserts = Object.entries(dynamicAnswers).map(([questionId, pcts]) => ({
+      poll_id: pollId,
+      question_id: questionId,
+      free_text: JSON.stringify(pcts),
+      user_id: userId,
+    }));
+
+    const allInserts = [...mcInserts, ...ftInserts, ...otherInserts, ...dynamicInserts];
 
     if (allInserts.length === 0) return { error: null };
 

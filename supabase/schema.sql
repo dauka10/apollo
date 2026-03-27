@@ -48,6 +48,7 @@ create table public.questions (
   text text not null,
   type text not null default 'multiple_choice' check (type in ('multiple_choice', 'free_response')),
   allow_other boolean not null default false,
+  allow_dynamic boolean not null default false,
   sort_order int not null default 0
 );
 
