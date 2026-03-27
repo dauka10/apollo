@@ -194,6 +194,15 @@
   .app-header {
     padding: 20px 0 16px;
   }
+
+  .app-logo-img {
+    height: 32px;
+  }
+
+  .create-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
 }
 
 @media (max-width: 480px) {

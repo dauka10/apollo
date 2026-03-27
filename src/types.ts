@@ -17,8 +17,10 @@ export interface Question {
   id: string;
   text: string;
   type: QuestionType;
+  allowOther: boolean;
   options: QuestionOption[];
   freeTextResponses: FreeTextResponse[];
+  otherResponses: FreeTextResponse[];
 }
 
 export interface Poll {

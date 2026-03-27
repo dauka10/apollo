@@ -77,6 +77,7 @@ export interface Database {
           poll_id: string;
           text: string;
           type: 'multiple_choice' | 'free_response';
+          allow_other: boolean;
           sort_order: number;
         };
         Insert: {
@@ -84,6 +85,7 @@ export interface Database {
           poll_id: string;
           text: string;
           type?: 'multiple_choice' | 'free_response';
+          allow_other?: boolean;
           sort_order: number;
         };
         Update: {
@@ -91,6 +93,7 @@ export interface Database {
           poll_id?: string;
           text?: string;
           type?: 'multiple_choice' | 'free_response';
+          allow_other?: boolean;
           sort_order?: number;
         };
         Relationships: [

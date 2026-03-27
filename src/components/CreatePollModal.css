@@ -440,3 +440,26 @@ form {
 .thumbnail-remove:hover {
   background: rgba(0, 0, 0, 0.8);
 }
+
+/* Allow other toggle */
+.allow-other-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 4px 0;
+}
+
+.allow-other-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.allow-other-toggle span {
+  line-height: 1.3;
+}

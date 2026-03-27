@@ -5,26 +5,32 @@ import './SurveyView.css';
 interface SurveyViewProps {
   poll: Poll;
   onBack: () => void;
-  onVote: (pollId: string, answers: Record<string, string>, freeTextAnswers: Record<string, string>) => void | Promise<void>;
+  onVote: (pollId: string, answers: Record<string, string>, freeTextAnswers: Record<string, string>, otherTextAnswers: Record<string, string>) => void | Promise<void>;
   hasVoted?: boolean;
 }
 
 export function SurveyView({ poll, onBack, onVote, hasVoted }: SurveyViewProps) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [freeTextAnswers, setFreeTextAnswers] = useState<Record<string, string>>({});
+  const [otherTextAnswers, setOtherTextAnswers] = useState<Record<string, string>>({});
+  const [otherSelected, setOtherSelected] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(hasVoted ?? false);
   const [submitting, setSubmitting] = useState(false);
 
-  const allAnswered = poll.questions.every((q) =>
-    q.type === 'free_response'
-      ? (freeTextAnswers[q.id] ?? '').trim().length > 0
-      : !!answers[q.id]
-  );
+  const allAnswered = poll.questions.every((q) => {
+    if (q.type === 'free_response') {
+      return (freeTextAnswers[q.id] ?? '').trim().length > 0;
+    }
+    if (otherSelected[q.id]) {
+      return (otherTextAnswers[q.id] ?? '').trim().length > 0;
+    }
+    return !!answers[q.id];
+  });
 
   const handleSubmit = async () => {
     if (allAnswered && !submitting) {
       setSubmitting(true);
-      await onVote(poll.id, answers, freeTextAnswers);
+      await onVote(poll.id, answers, freeTextAnswers, otherTextAnswers);
       setSubmitted(true);
       setSubmitting(false);
     }
@@ -98,7 +104,9 @@ export function SurveyView({ poll, onBack, onVote, hasVoted }: SurveyViewProps) 
             );
           }
 
-          const totalVotes = question.options.reduce((s, o) => s + o.votes, 0);
+          const otherCount = question.otherResponses.length;
+          const totalVotes = question.options.reduce((s, o) => s + o.votes, 0) + otherCount;
+          const isOther = otherSelected[question.id];
 
           return (
             <div key={question.id} className="survey-question">
@@ -106,16 +114,19 @@ export function SurveyView({ poll, onBack, onVote, hasVoted }: SurveyViewProps) 
               <p className="question-text">{question.text}</p>
               <div className="question-options">
                 {question.options.map((option) => {
-                  const isSelected = answers[question.id] === option.id;
-                  const votes = option.votes + (submitted && isSelected ? 1 : 0);
-                  const adjustedTotal = totalVotes + (submitted ? 1 : 0);
-                  const pct = adjustedTotal > 0 ? (votes / adjustedTotal) * 100 : 0;
+                  const isSelected = !isOther && answers[question.id] === option.id;
+                  const pct = totalVotes > 0 ? (option.votes / totalVotes) * 100 : 0;
 
                   return (
                     <button
                       key={option.id}
                       className={`survey-option ${isSelected ? 'selected' : ''} ${submitted ? 'voted' : ''}`}
-                      onClick={() => !submitted && setAnswers({ ...answers, [question.id]: option.id })}
+                      onClick={() => {
+                        if (!submitted) {
+                          setAnswers({ ...answers, [question.id]: option.id });
+                          setOtherSelected({ ...otherSelected, [question.id]: false });
+                        }
+                      }}
                       disabled={submitted}
                     >
                       {submitted && (
@@ -128,6 +139,65 @@ export function SurveyView({ poll, onBack, onVote, hasVoted }: SurveyViewProps) 
                     </button>
                   );
                 })}
+
+                {question.allowOther && !submitted && (
+                  <>
+                    <button
+                      className={`survey-option ${isOther ? 'selected' : ''}`}
+                      onClick={() => {
+                        setOtherSelected({ ...otherSelected, [question.id]: true });
+                        const { [question.id]: _, ...rest } = answers;
+                        setAnswers(rest);
+                      }}
+                    >
+                      <span className="survey-option-text">Other</span>
+                    </button>
+                    {isOther && (
+                      <input
+                        type="text"
+                        className="other-text-input"
+                        placeholder="Type your answer..."
+                        value={otherTextAnswers[question.id] ?? ''}
+                        onChange={(e) =>
+                          setOtherTextAnswers({ ...otherTextAnswers, [question.id]: e.target.value })
+                        }
+                        autoFocus
+                      />
+                    )}
+                  </>
+                )}
+
+                {question.allowOther && submitted && (
+                  (() => {
+                    const pct = totalVotes > 0 ? (otherCount / totalVotes) * 100 : 0;
+                    return (
+                      <>
+                        <button className={`survey-option ${isOther ? 'selected' : ''} voted`} disabled>
+                          <div className="survey-option-bar" style={{ width: `${pct}%` }} />
+                          <span className="survey-option-text">Other</span>
+                          <span className="survey-option-pct">{Math.round(pct)}%</span>
+                        </button>
+                        {(question.otherResponses.length > 0 || isOther) && (
+                          <div className="other-answers-section">
+                            <span className="other-answers-label">Other answers</span>
+                            <div className="responses-list">
+                              {isOther && otherTextAnswers[question.id]?.trim() && (
+                                <div className="response-bubble your-other">
+                                  {otherTextAnswers[question.id]}
+                                </div>
+                              )}
+                              {question.otherResponses.map((r) => (
+                                <div key={r.id} className="response-bubble">
+                                  {r.text}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()
+                )}
               </div>
             </div>
           );
@@ -137,7 +207,7 @@ export function SurveyView({ poll, onBack, onVote, hasVoted }: SurveyViewProps) 
       {!submitted && (
         <div className="survey-submit-area">
           <span className="survey-progress">
-            {Object.keys(answers).length + Object.keys(freeTextAnswers).filter((k) => freeTextAnswers[k]?.trim()).length} of {poll.questions.length} answered
+            {Object.keys(answers).length + Object.keys(freeTextAnswers).filter((k) => freeTextAnswers[k]?.trim()).length + Object.keys(otherTextAnswers).filter((k) => otherSelected[k] && otherTextAnswers[k]?.trim()).length} of {poll.questions.length} answered
           </span>
           <button
             className="survey-submit-btn"

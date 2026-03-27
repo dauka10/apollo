@@ -61,13 +61,21 @@ export function usePolls(userId?: string) {
       }
     }
 
-    // Collect free text responses per question
+    // Build a set of question IDs that are multiple_choice (for distinguishing "other" from free_response)
+    const mcQuestionIds = new Set(
+      (questions ?? []).filter((q) => q.type === 'multiple_choice').map((q) => q.id)
+    );
+
+    // Collect free text responses per question (for free_response questions)
     const freeTextByQuestion: Record<string, { id: string; text: string; createdAt: number }[]> = {};
+    // Collect "other" text responses per question (for multiple_choice questions with allow_other)
+    const otherByQuestion: Record<string, { id: string; text: string; createdAt: number }[]> = {};
     for (const r of responseCounts ?? []) {
       if (r.free_text) {
-        if (!freeTextByQuestion[r.question_id]) freeTextByQuestion[r.question_id] = [];
-        freeTextByQuestion[r.question_id].push({
-          id: r.question_id + '_' + freeTextByQuestion[r.question_id].length,
+        const target = mcQuestionIds.has(r.question_id) ? otherByQuestion : freeTextByQuestion;
+        if (!target[r.question_id]) target[r.question_id] = [];
+        target[r.question_id].push({
+          id: r.question_id + '_' + target[r.question_id].length,
           text: r.free_text,
           createdAt: new Date(r.created_at).getTime(),
         });
@@ -108,6 +116,7 @@ export function usePolls(userId?: string) {
           id: q.id,
           text: q.text,
           type: (q.type ?? 'multiple_choice') as QuestionType,
+          allowOther: q.allow_other ?? false,
           options: (options ?? [])
             .filter((o) => o.question_id === q.id)
             .map((o) => ({
@@ -116,6 +125,7 @@ export function usePolls(userId?: string) {
               votes: voteCounts[o.id] ?? 0,
             })),
           freeTextResponses: freeTextByQuestion[q.id] ?? [],
+          otherResponses: otherByQuestion[q.id] ?? [],
         })),
       };
     });
@@ -135,7 +145,7 @@ export function usePolls(userId?: string) {
   }, [userId]);
 
   useEffect(() => {
-    fetchPolls();
+    void fetchPolls();
   }, [fetchPolls]);
 
   const createPoll = async (
@@ -146,7 +156,7 @@ export function usePolls(userId?: string) {
       description: string;
       category: PollCategory;
       thumbnailUrl?: string;
-      questions: { text: string; type: QuestionType; options: string[] }[];
+      questions: { text: string; type: QuestionType; options: string[]; allowOther: boolean }[];
     }
   ) => {
     const { data: poll, error: pollError } = await supabase
@@ -175,6 +185,7 @@ export function usePolls(userId?: string) {
           poll_id: poll.id,
           text: q.text,
           type: q.type,
+          allow_other: q.allowOther ?? false,
           sort_order: qi,
         })
         .select()
@@ -212,7 +223,8 @@ export function usePolls(userId?: string) {
     userId: string,
     pollId: string,
     answers: Record<string, string>, // questionId -> optionId (for multiple choice)
-    freeTextAnswers: Record<string, string> = {} // questionId -> text (for free response)
+    freeTextAnswers: Record<string, string> = {}, // questionId -> text (for free response)
+    otherTextAnswers: Record<string, string> = {} // questionId -> text (for MC "other" option)
   ) => {
     const mcInserts = Object.entries(answers).map(([questionId, optionId]) => ({
       poll_id: pollId,
@@ -230,7 +242,16 @@ export function usePolls(userId?: string) {
         user_id: userId,
       }));
 
-    const allInserts = [...mcInserts, ...ftInserts];
+    const otherInserts = Object.entries(otherTextAnswers)
+      .filter(([, text]) => text.trim())
+      .map(([questionId, text]) => ({
+        poll_id: pollId,
+        question_id: questionId,
+        free_text: text.trim(),
+        user_id: userId,
+      }));
+
+    const allInserts = [...mcInserts, ...ftInserts, ...otherInserts];
 
     if (allInserts.length === 0) return { error: null };
 

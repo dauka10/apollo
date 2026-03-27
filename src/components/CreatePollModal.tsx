@@ -7,6 +7,7 @@ interface QuestionDraft {
   text: string;
   type: QuestionType;
   options: string[];
+  allowOther: boolean;
 }
 
 interface CreatePollModalProps {
@@ -16,11 +17,11 @@ interface CreatePollModalProps {
     description: string;
     category: PollCategory;
     thumbnailUrl?: string;
-    questions: QuestionDraft[];
+    questions: { text: string; type: QuestionType; options: string[]; allowOther: boolean }[];
   }) => void | Promise<void>;
 }
 
-const emptyQuestion = (): QuestionDraft => ({ text: '', type: 'multiple_choice', options: ['', ''] });
+const emptyQuestion = (): QuestionDraft => ({ text: '', type: 'multiple_choice', options: ['', ''], allowOther: false });
 
 export function CreatePollModal({ onClose, onCreate }: CreatePollModalProps) {
   const [title, setTitle] = useState('');
@@ -139,6 +140,7 @@ export function CreatePollModal({ onClose, onCreate }: CreatePollModalProps) {
         text: q.text.trim(),
         type: q.type,
         options: q.type === 'multiple_choice' ? q.options.filter((o) => o.trim()) : [],
+        allowOther: q.type === 'multiple_choice' ? q.allowOther : false,
       })),
     });
     setSubmitting(false);
@@ -318,6 +320,18 @@ export function CreatePollModal({ onClose, onCreate }: CreatePollModalProps) {
                         + Add option
                       </button>
                     )}
+                    <label className="allow-other-toggle">
+                      <input
+                        type="checkbox"
+                        checked={q.allowOther}
+                        onChange={(e) => {
+                          const updated = [...questions];
+                          updated[qIndex] = { ...updated[qIndex], allowOther: e.target.checked };
+                          setQuestions(updated);
+                        }}
+                      />
+                      <span>Allow "Other" answer (students write their own)</span>
+                    </label>
                   </>
                 ) : (
                   <div className="free-response-hint">
