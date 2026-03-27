@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Poll } from '../types';
+import { ResultCharts } from './ResultCharts';
 import './SurveyView.css';
 
 interface SurveyViewProps {
@@ -228,6 +229,8 @@ export function SurveyView({ poll, onBack, onVote, hasVoted }: SurveyViewProps) 
           <p>Thank you for your responses!</p>
         </div>
       )}
+
+      {submitted && <ResultCharts questions={poll.questions} />}
     </div>
   );
 }
