@@ -10,12 +10,35 @@ create extension if not exists "uuid-ossp";
 -- Tables
 -- ============================================
 
+create table public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  avatar text not null default 'default',
+  display_name text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.profiles enable row level security;
+
+create policy "Profiles are viewable by everyone"
+  on public.profiles for select
+  using (true);
+
+create policy "Users can create own profile"
+  on public.profiles for insert
+  with check (auth.uid() = id);
+
+create policy "Users can update own profile"
+  on public.profiles for update
+  using (auth.uid() = id);
+
 create table public.polls (
   id uuid primary key default uuid_generate_v4(),
   title text not null,
   description text not null,
   category text not null check (category in ('Homework', 'Research', 'Else')),
   user_id uuid not null references auth.users(id) on delete cascade,
+  author_email text,
+  thumbnail_url text,
   created_at timestamptz not null default now()
 );
 

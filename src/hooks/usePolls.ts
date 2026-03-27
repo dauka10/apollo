@@ -80,6 +80,16 @@ export function usePolls(userId?: string) {
       pollResponseCounts[r.poll_id] = (pollResponseCounts[r.poll_id] ?? 0) + 1;
     }
 
+    // Fetch author profiles
+    const authorIds = [...new Set(pollRows.map((p) => p.user_id))];
+    const { data: authorProfiles } = authorIds.length > 0
+      ? await supabase.from('profiles').select('id, avatar').in('id', authorIds)
+      : { data: [] };
+    const avatarMap: Record<string, string> = {};
+    for (const ap of authorProfiles ?? []) {
+      avatarMap[ap.id] = ap.avatar;
+    }
+
     const mappedPolls: Poll[] = pollRows.map((p) => {
       const pQuestions = (questions ?? []).filter((q) => q.poll_id === p.id);
       const questionsPerPoll = pQuestions.length || 1;
@@ -89,6 +99,9 @@ export function usePolls(userId?: string) {
         description: p.description,
         category: p.category as PollCategory,
         userId: p.user_id,
+        authorEmail: p.author_email ?? undefined,
+        authorAvatar: avatarMap[p.user_id] ?? undefined,
+        thumbnailUrl: p.thumbnail_url ?? undefined,
         responses: Math.floor((pollResponseCounts[p.id] ?? 0) / questionsPerPoll),
         createdAt: new Date(p.created_at).getTime(),
         questions: pQuestions.map((q) => ({
@@ -127,10 +140,12 @@ export function usePolls(userId?: string) {
 
   const createPoll = async (
     userId: string,
+    userEmail: string,
     data: {
       title: string;
       description: string;
       category: PollCategory;
+      thumbnailUrl?: string;
       questions: { text: string; type: QuestionType; options: string[] }[];
     }
   ) => {
@@ -141,6 +156,8 @@ export function usePolls(userId?: string) {
         description: data.description,
         category: data.category,
         user_id: userId,
+        author_email: userEmail,
+        thumbnail_url: data.thumbnailUrl ?? null,
       })
       .select()
       .single();

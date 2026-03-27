@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { supabase } from '../lib/supabase';
 import type { PollCategory, QuestionType } from '../types';
 import './CreatePollModal.css';
 
@@ -14,17 +15,38 @@ interface CreatePollModalProps {
     title: string;
     description: string;
     category: PollCategory;
+    thumbnailUrl?: string;
     questions: QuestionDraft[];
-  }) => void;
+  }) => void | Promise<void>;
 }
 
 const emptyQuestion = (): QuestionDraft => ({ text: '', type: 'multiple_choice', options: ['', ''] });
 
 export function CreatePollModal({ onClose, onCreate }: CreatePollModalProps) {
   const [title, setTitle] = useState('');
+  const [date, setDate] = useState(() => {
+    const d = new Date();
+    return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getFullYear()).slice(-2)}`;
+  });
+  const [hashtags, setHashtags] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<PollCategory>('Research');
   const [questions, setQuestions] = useState<QuestionDraft[]>([emptyQuestion()]);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+
+  const handleThumbnailSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) return;
+    setThumbnailFile(file);
+    setThumbnailPreview(URL.createObjectURL(file));
+  };
+
+  const removeThumbnail = () => {
+    if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
+    setThumbnailFile(null);
+    setThumbnailPreview(null);
+  };
 
   const addQuestion = () => {
     setQuestions([...questions, emptyQuestion()]);
@@ -77,26 +99,49 @@ export function CreatePollModal({ onClose, onCreate }: CreatePollModalProps) {
 
   const canSubmit =
     title.trim() &&
-    description.trim() &&
+    date.trim() &&
     questions.every(
       (q) =>
         q.text.trim() &&
         (q.type === 'free_response' || q.options.filter((o) => o.trim()).length >= 2)
     );
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit) return;
-    onCreate({
+    if (!canSubmit || submitting) return;
+    setSubmitting(true);
+
+    let thumbnailUrl: string | undefined;
+    if (thumbnailFile) {
+      const ext = thumbnailFile.name.split('.').pop() ?? 'png';
+      const path = `thumbnails/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('poll-assets')
+        .upload(path, thumbnailFile, { contentType: thumbnailFile.type });
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage
+          .from('poll-assets')
+          .getPublicUrl(path);
+        thumbnailUrl = urlData.publicUrl;
+      }
+    }
+
+    const meta = [date.trim(), hashtags.trim()].filter(Boolean).join(' ');
+    const fullDescription = [meta, description.trim()].filter(Boolean).join(' | ');
+    await onCreate({
       title: title.trim(),
-      description: description.trim(),
+      description: fullDescription,
       category,
+      thumbnailUrl,
       questions: questions.map((q) => ({
         text: q.text.trim(),
         type: q.type,
         options: q.type === 'multiple_choice' ? q.options.filter((o) => o.trim()) : [],
       })),
     });
+    setSubmitting(false);
   };
 
   return (
@@ -121,6 +166,27 @@ export function CreatePollModal({ onClose, onCreate }: CreatePollModalProps) {
               autoFocus
             />
           </div>
+          <div className="form-row">
+            <div className="form-group form-group-date">
+              <label>Date</label>
+              <input
+                type="text"
+                placeholder="DD.MM.YY"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                maxLength={8}
+              />
+            </div>
+            <div className="form-group form-group-tags">
+              <label>Hashtags</label>
+              <input
+                type="text"
+                placeholder="#math #homework #chapter5"
+                value={hashtags}
+                onChange={(e) => setHashtags(e.target.value)}
+              />
+            </div>
+          </div>
           <div className="form-group">
             <label>Description</label>
             <textarea
@@ -129,6 +195,34 @@ export function CreatePollModal({ onClose, onCreate }: CreatePollModalProps) {
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
             />
+          </div>
+          <div className="form-group">
+            <label>Thumbnail (optional)</label>
+            {thumbnailPreview ? (
+              <div className="thumbnail-preview">
+                <img src={thumbnailPreview} alt="Thumbnail preview" />
+                <button type="button" className="thumbnail-remove" onClick={removeThumbnail}>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <label className="thumbnail-upload-area">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleThumbnailSelect}
+                  hidden
+                />
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <polyline points="21 15 16 10 5 21" />
+                </svg>
+                <span>Click to upload an image</span>
+              </label>
+            )}
           </div>
           <div className="form-group">
             <label>Category</label>
@@ -238,8 +332,8 @@ export function CreatePollModal({ onClose, onCreate }: CreatePollModalProps) {
             <button type="button" className="btn-cancel" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="btn-create" disabled={!canSubmit}>
-              Create Survey
+            <button type="submit" className="btn-create" disabled={!canSubmit || submitting}>
+              {submitting ? 'Creating...' : 'Create Survey'}
             </button>
           </div>
         </form>

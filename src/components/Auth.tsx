@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { AvatarPicker } from './AvatarPicker';
+import { AVATAR_OPTIONS, type AvatarId } from '../hooks/useProfile';
 import './Auth.css';
 
 interface AuthProps {
-  onAuth: (email: string, password: string, isSignUp: boolean) => Promise<{ error: unknown }>;
+  onAuth: (email: string, password: string, isSignUp: boolean, avatar?: string) => Promise<{ error: unknown }>;
   onGoogleSignIn: () => Promise<{ error: unknown }>;
 }
 
@@ -10,6 +12,7 @@ export function Auth({ onAuth, onGoogleSignIn }: AuthProps) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [selectedAvatar, setSelectedAvatar] = useState<AvatarId>(AVATAR_OPTIONS[0]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState('');
@@ -26,7 +29,7 @@ export function Auth({ onAuth, onGoogleSignIn }: AuthProps) {
 
     setLoading(true);
 
-    const { error } = await onAuth(email, password, isSignUp);
+    const { error } = await onAuth(email, password, isSignUp, isSignUp ? selectedAvatar : undefined);
 
     if (error) {
       setError((error as { message?: string }).message ?? 'Something went wrong');
@@ -82,6 +85,10 @@ export function Auth({ onAuth, onGoogleSignIn }: AuthProps) {
               minLength={6}
             />
           </div>
+
+          {isSignUp && (
+            <AvatarPicker selected={selectedAvatar} onSelect={setSelectedAvatar} />
+          )}
 
           {error && <div className="auth-error">{error}</div>}
           {confirmMessage && <div className="auth-success">{confirmMessage}</div>}

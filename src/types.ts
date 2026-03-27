@@ -27,6 +27,9 @@ export interface Poll {
   description: string;
   category: PollCategory;
   userId: string;
+  authorEmail?: string;
+  authorAvatar?: string;
+  thumbnailUrl?: string;
   questions: Question[];
   responses: number;
   createdAt: number;

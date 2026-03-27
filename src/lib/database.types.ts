@@ -1,6 +1,35 @@
 export interface Database {
   public: {
     Tables: {
+      profiles: {
+        Row: {
+          id: string;
+          avatar: string;
+          display_name: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          avatar?: string;
+          display_name?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          avatar?: string;
+          display_name?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'profiles_id_fkey';
+            columns: ['id'];
+            isOneToOne: true;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       polls: {
         Row: {
           id: string;
@@ -8,6 +37,8 @@ export interface Database {
           description: string;
           category: 'Homework' | 'Research' | 'Else';
           user_id: string;
+          author_email: string | null;
+          thumbnail_url: string | null;
           created_at: string;
         };
         Insert: {
@@ -16,6 +47,8 @@ export interface Database {
           description: string;
           category: 'Homework' | 'Research' | 'Else';
           user_id: string;
+          author_email?: string | null;
+          thumbnail_url?: string | null;
           created_at?: string;
         };
         Update: {
@@ -24,6 +57,8 @@ export interface Database {
           description?: string;
           category?: 'Homework' | 'Research' | 'Else';
           user_id?: string;
+          author_email?: string | null;
+          thumbnail_url?: string | null;
           created_at?: string;
         };
         Relationships: [

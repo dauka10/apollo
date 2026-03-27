@@ -43,6 +43,11 @@ export function SurveyView({ poll, onBack, onVote, hasVoted }: SurveyViewProps) 
 
       <div className="survey-header">
         <span className={`poll-tag ${categoryClass}`}>{poll.category}</span>
+        {poll.thumbnailUrl && (
+          <div className="survey-thumbnail">
+            <img src={poll.thumbnailUrl} alt="" />
+          </div>
+        )}
         <h2 className="survey-title">{poll.title}</h2>
         <p className="survey-description">{poll.description}</p>
         <span className="survey-response-count">{poll.responses} responses so far</span>

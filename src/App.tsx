@@ -2,10 +2,12 @@ import { useState } from 'react';
 import type { TabFilter, PollCategory } from './types';
 import { useAuth } from './hooks/useAuth';
 import { usePolls } from './hooks/usePolls';
+import { useProfile } from './hooks/useProfile';
 import { Auth } from './components/Auth';
 import { PollCard } from './components/PollCard';
 import { CreatePollModal } from './components/CreatePollModal';
 import { SurveyView } from './components/SurveyView';
+import { ProfileMenu } from './components/ProfileMenu';
 import './App.css';
 
 const tabs: TabFilter[] = ['All', 'Homework', 'Research', 'Else'];
@@ -13,9 +15,12 @@ const tabs: TabFilter[] = ['All', 'Homework', 'Research', 'Else'];
 function App() {
   const { user, loading: authLoading, signUp, signIn, signInWithGoogle, signOut } = useAuth();
   const { polls, loading: pollsLoading, votedPollIds, createPoll, submitResponses } = usePolls(user?.id);
+  const { profile, updateAvatar } = useProfile(user?.id);
   const [activeTab, setActiveTab] = useState<TabFilter>('All');
+  const [searchQuery, setSearchQuery] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [openPollId, setOpenPollId] = useState<string | null>(null);
+
 
   if (authLoading) {
     return (
@@ -28,8 +33,15 @@ function App() {
   if (!user) {
     return (
       <Auth
-        onAuth={async (email, password, isSignUp) => {
-          if (isSignUp) return signUp(email, password);
+        onAuth={async (email, password, isSignUp, avatar) => {
+          if (isSignUp) {
+            const result = await signUp(email, password);
+            if (!result.error && avatar) {
+              // Profile will be created after email confirmation via onAuthStateChange
+              localStorage.setItem('apollo_pending_avatar', avatar);
+            }
+            return result;
+          }
           return signIn(email, password);
         }}
         onGoogleSignIn={signInWithGoogle}
@@ -37,10 +49,17 @@ function App() {
     );
   }
 
-  const filteredPolls =
-    activeTab === 'All'
-      ? polls
-      : polls.filter((p) => p.category === activeTab);
+  const query = searchQuery.toLowerCase().trim();
+  const filteredPolls = polls.filter((p) => {
+    const matchesTab = activeTab === 'All' || p.category === activeTab;
+    if (!matchesTab) return false;
+    if (!query) return true;
+    return (
+      p.title.toLowerCase().includes(query) ||
+      p.description.toLowerCase().includes(query) ||
+      (p.authorEmail?.toLowerCase().includes(query) ?? false)
+    );
+  });
 
   const openPoll = openPollId ? polls.find((p) => p.id === openPollId) : null;
 
@@ -54,7 +73,7 @@ function App() {
     category: PollCategory;
     questions: { text: string; type: import('./types').QuestionType; options: string[] }[];
   }) => {
-    await createPoll(user.id, data);
+    await createPoll(user.id, user.email ?? '', data);
     setShowCreate(false);
   };
 
@@ -76,16 +95,20 @@ function App() {
           <img src={new URL('./assets/immaculate-logo.png', import.meta.url).href} alt="Apollo" className="app-logo-img" />
         </div>
         <div className="header-actions">
-          <span className="user-email">{user.email}</span>
-          <button className="sign-out-btn" onClick={signOut}>
-            Sign Out
-          </button>
           <button className="create-btn" onClick={() => setShowCreate(true)}>
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <path d="M9 3v12M3 9h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
             New Survey
           </button>
+          {profile && (
+            <ProfileMenu
+              profile={profile}
+              email={user.email ?? ''}
+              onUpdateAvatar={updateAvatar}
+              onSignOut={signOut}
+            />
+          )}
         </div>
       </header>
 
@@ -100,6 +123,19 @@ function App() {
           </button>
         ))}
       </nav>
+
+      <div className="search-bar">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="11" cy="11" r="8" />
+          <path d="M21 21l-4.35-4.35" />
+        </svg>
+        <input
+          type="text"
+          placeholder="Search by title, #hashtag, date..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
 
       {pollsLoading ? (
         <div className="loading-state">

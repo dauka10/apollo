@@ -57,6 +57,19 @@ form {
   gap: 18px;
 }
 
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.form-group-date {
+  flex: 0 0 110px;
+}
+
+.form-group-tags {
+  flex: 1;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;
@@ -369,4 +382,61 @@ form {
 .btn-create:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* Thumbnail upload */
+.thumbnail-upload-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.thumbnail-upload-area:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.thumbnail-preview {
+  position: relative;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.thumbnail-preview img {
+  display: block;
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+}
+
+.thumbnail-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.thumbnail-remove:hover {
+  background: rgba(0, 0, 0, 0.8);
 }
