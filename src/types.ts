@@ -24,6 +24,8 @@ export interface Question {
   text: string;
   type: QuestionType;
   allowOther: boolean;
+  allowMultiple: boolean;
+  maxSelections: number;
   allowDynamic: boolean;
   options: QuestionOption[];
   freeTextResponses: FreeTextResponse[];

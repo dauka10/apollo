@@ -133,6 +133,8 @@ export function usePolls(userId?: string) {
           text: q.text,
           type: (q.type ?? 'multiple_choice') as QuestionType,
           allowOther: q.allow_other ?? false,
+          allowMultiple: q.allow_multiple ?? false,
+          maxSelections: q.max_selections ?? 2,
           allowDynamic: q.allow_dynamic ?? false,
           options: (options ?? [])
             .filter((o) => o.question_id === q.id)
@@ -183,7 +185,7 @@ export function usePolls(userId?: string) {
       description: string;
       category: PollCategory;
       thumbnailUrl?: string;
-      questions: { text: string; type: QuestionType; options: string[]; allowOther: boolean; allowDynamic: boolean }[];
+      questions: { text: string; type: QuestionType; options: string[]; allowOther: boolean; allowMultiple: boolean; maxSelections: number; allowDynamic: boolean }[];
     }
   ) => {
     const { data: poll, error: pollError } = await supabase
@@ -213,6 +215,8 @@ export function usePolls(userId?: string) {
           text: q.text,
           type: q.type,
           allow_other: q.allowOther ?? false,
+          allow_multiple: q.allowMultiple ?? false,
+          max_selections: q.maxSelections ?? 2,
           allow_dynamic: q.allowDynamic ?? false,
           sort_order: qi,
         })
@@ -250,10 +254,11 @@ export function usePolls(userId?: string) {
   const submitResponses = async (
     userId: string,
     pollId: string,
-    answers: Record<string, string>, // questionId -> optionId (for multiple choice)
+    answers: Record<string, string>, // questionId -> optionId (for single choice)
     freeTextAnswers: Record<string, string> = {}, // questionId -> text (for free response)
     otherTextAnswers: Record<string, string> = {}, // questionId -> text (for MC "other" option)
-    dynamicAnswers: Record<string, Record<string, number>> = {} // questionId -> { optionId: pct }
+    dynamicAnswers: Record<string, Record<string, number>> = {}, // questionId -> { optionId: pct }
+    multiAnswers: Record<string, string[]> = {} // questionId -> optionIds (for multiple choice)
   ) => {
     const mcInserts = Object.entries(answers).map(([questionId, optionId]) => ({
       poll_id: pollId,
@@ -261,6 +266,15 @@ export function usePolls(userId?: string) {
       option_id: optionId,
       user_id: userId,
     }));
+
+    const multiInserts = Object.entries(multiAnswers).flatMap(([questionId, optionIds]) =>
+      optionIds.map((optionId) => ({
+        poll_id: pollId,
+        question_id: questionId,
+        option_id: optionId,
+        user_id: userId,
+      }))
+    );
 
     const ftInserts = Object.entries(freeTextAnswers)
       .filter(([, text]) => text.trim())
@@ -287,7 +301,7 @@ export function usePolls(userId?: string) {
       user_id: userId,
     }));
 
-    const allInserts = [...mcInserts, ...ftInserts, ...otherInserts, ...dynamicInserts];
+    const allInserts = [...mcInserts, ...multiInserts, ...ftInserts, ...otherInserts, ...dynamicInserts];
 
     if (allInserts.length === 0) return { error: null };
 

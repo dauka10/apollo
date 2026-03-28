@@ -78,6 +78,8 @@ export interface Database {
           text: string;
           type: 'multiple_choice' | 'free_response';
           allow_other: boolean;
+          allow_multiple: boolean;
+          max_selections: number;
           allow_dynamic: boolean;
           sort_order: number;
         };
@@ -87,6 +89,8 @@ export interface Database {
           text: string;
           type?: 'multiple_choice' | 'free_response';
           allow_other?: boolean;
+          allow_multiple?: boolean;
+          max_selections?: number;
           allow_dynamic?: boolean;
           sort_order: number;
         };
@@ -96,6 +100,8 @@ export interface Database {
           text?: string;
           type?: 'multiple_choice' | 'free_response';
           allow_other?: boolean;
+          allow_multiple?: boolean;
+          max_selections?: number;
           allow_dynamic?: boolean;
           sort_order?: number;
         };

@@ -8,6 +8,8 @@ interface QuestionDraft {
   type: QuestionType;
   options: string[];
   allowOther: boolean;
+  allowMultiple: boolean;
+  maxSelections: number;
   allowDynamic: boolean;
 }
 
@@ -18,11 +20,11 @@ interface CreatePollModalProps {
     description: string;
     category: PollCategory;
     thumbnailUrl?: string;
-    questions: { text: string; type: QuestionType; options: string[]; allowOther: boolean; allowDynamic: boolean }[];
+    questions: { text: string; type: QuestionType; options: string[]; allowOther: boolean; allowMultiple: boolean; maxSelections: number; allowDynamic: boolean }[];
   }) => void | Promise<void>;
 }
 
-const emptyQuestion = (): QuestionDraft => ({ text: '', type: 'multiple_choice', options: ['', ''], allowOther: false, allowDynamic: false });
+const emptyQuestion = (): QuestionDraft => ({ text: '', type: 'multiple_choice', options: ['', ''], allowOther: false, allowMultiple: false, maxSelections: 2, allowDynamic: false });
 
 export function CreatePollModal({ onClose, onCreate }: CreatePollModalProps) {
   const [title, setTitle] = useState('');
@@ -142,6 +144,8 @@ export function CreatePollModal({ onClose, onCreate }: CreatePollModalProps) {
         type: q.type,
         options: q.type === 'multiple_choice' ? q.options.filter((o) => o.trim()) : [],
         allowOther: q.type === 'multiple_choice' ? q.allowOther : false,
+        allowMultiple: q.type === 'multiple_choice' ? q.allowMultiple : false,
+        maxSelections: q.type === 'multiple_choice' ? q.maxSelections : 2,
         allowDynamic: q.type === 'multiple_choice' ? q.allowDynamic : false,
       })),
     });
@@ -334,6 +338,35 @@ export function CreatePollModal({ onClose, onCreate }: CreatePollModalProps) {
                       />
                       <span>Allow "Other" answer (students write their own)</span>
                     </label>
+                    <label className="allow-other-toggle">
+                      <input
+                        type="checkbox"
+                        checked={q.allowMultiple}
+                        onChange={(e) => {
+                          const updated = [...questions];
+                          updated[qIndex] = { ...updated[qIndex], allowMultiple: e.target.checked };
+                          setQuestions(updated);
+                        }}
+                      />
+                      <span>Allow multiple choice (students can select more than one)</span>
+                    </label>
+                    {q.allowMultiple && (
+                      <div className="max-selections-row">
+                        <label>Max selections:</label>
+                        <input
+                          type="number"
+                          className="max-selections-input"
+                          min={2}
+                          max={q.options.length || 6}
+                          value={q.maxSelections}
+                          onChange={(e) => {
+                            const updated = [...questions];
+                            updated[qIndex] = { ...updated[qIndex], maxSelections: Math.max(2, Math.min(q.options.length || 6, parseInt(e.target.value) || 2)) };
+                            setQuestions(updated);
+                          }}
+                        />
+                      </div>
+                    )}
                     <label className="allow-other-toggle">
                       <input
                         type="checkbox"

@@ -63,15 +63,16 @@ function App() {
 
   const openPoll = openPollId ? polls.find((p) => p.id === openPollId) : null;
 
-  const handleVote = async (pollId: string, answers: Record<string, string>, freeTextAnswers: Record<string, string>, otherTextAnswers: Record<string, string>, dynamicAnswers: Record<string, Record<string, number>>) => {
-    await submitResponses(user.id, pollId, answers, freeTextAnswers, otherTextAnswers, dynamicAnswers);
+  const handleVote = async (pollId: string, answers: Record<string, string>, freeTextAnswers: Record<string, string>, otherTextAnswers: Record<string, string>, dynamicAnswers: Record<string, Record<string, number>>, multiAnswers: Record<string, string[]>) => {
+    const result = await submitResponses(user.id, pollId, answers, freeTextAnswers, otherTextAnswers, dynamicAnswers, multiAnswers);
+    if (result?.error) throw result.error;
   };
 
   const handleCreate = async (data: {
     title: string;
     description: string;
     category: PollCategory;
-    questions: { text: string; type: import('./types').QuestionType; options: string[]; allowOther: boolean; allowDynamic: boolean }[];
+    questions: { text: string; type: import('./types').QuestionType; options: string[]; allowOther: boolean; allowMultiple: boolean; maxSelections: number; allowDynamic: boolean }[];
   }) => {
     await createPoll(user.id, user.email ?? '', data);
     setShowCreate(false);

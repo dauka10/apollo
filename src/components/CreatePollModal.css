@@ -463,3 +463,23 @@ form {
 .allow-other-toggle span {
   line-height: 1.3;
 }
+
+.max-selections-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0 4px 24px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.max-selections-input {
+  width: 56px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--sans);
+}

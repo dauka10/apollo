@@ -148,6 +148,7 @@
 .survey-option-text {
   position: relative;
   z-index: 1;
+  flex: 1;
 }
 
 .survey-option-pct {
@@ -156,6 +157,42 @@
   font-weight: 600;
   color: var(--accent);
   font-size: 13px;
+}
+
+.survey-option.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.multi-select-hint {
+  display: block;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.multi-check {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  margin-right: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+  background: transparent;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.multi-check.checked {
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .survey-submit-area {

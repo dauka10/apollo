@@ -5,7 +5,7 @@ import './SurveyView.css';
 interface SurveyViewProps {
   poll: Poll;
   onBack: () => void;
-  onVote: (pollId: string, answers: Record<string, string>, freeTextAnswers: Record<string, string>, otherTextAnswers: Record<string, string>, dynamicAnswers: Record<string, Record<string, number>>) => void | Promise<void>;
+  onVote: (pollId: string, answers: Record<string, string>, freeTextAnswers: Record<string, string>, otherTextAnswers: Record<string, string>, dynamicAnswers: Record<string, Record<string, number>>, multiAnswers: Record<string, string[]>) => void | Promise<void>;
   hasVoted?: boolean;
 }
 
@@ -14,6 +14,7 @@ export function SurveyView({ poll, onBack, onVote, hasVoted }: SurveyViewProps) 
   const [freeTextAnswers, setFreeTextAnswers] = useState<Record<string, string>>({});
   const [otherTextAnswers, setOtherTextAnswers] = useState<Record<string, string>>({});
   const [otherSelected, setOtherSelected] = useState<Record<string, boolean>>({});
+  const [multiAnswers, setMultiAnswers] = useState<Record<string, string[]>>({});
   // dynamicAnswers: questionId -> { optionId: percentage }
   const [dynamicAnswers, setDynamicAnswers] = useState<Record<string, Record<string, number>>>({});
   const [dynamicMode, setDynamicMode] = useState<Record<string, boolean>>({});
@@ -36,15 +37,23 @@ export function SurveyView({ poll, onBack, onVote, hasVoted }: SurveyViewProps) 
     if (otherSelected[q.id]) {
       return (otherTextAnswers[q.id] ?? '').trim().length > 0;
     }
+    if (q.allowMultiple) {
+      return (multiAnswers[q.id] ?? []).length >= 1;
+    }
     return !!answers[q.id];
   });
 
   const handleSubmit = async () => {
     if (allAnswered && !submitting) {
       setSubmitting(true);
-      await onVote(poll.id, answers, freeTextAnswers, otherTextAnswers, dynamicAnswers);
-      setSubmitted(true);
-      setSubmitting(false);
+      try {
+        await onVote(poll.id, answers, freeTextAnswers, otherTextAnswers, dynamicAnswers, multiAnswers);
+        setSubmitted(true);
+      } catch (err) {
+        console.error('Vote submission failed:', err);
+      } finally {
+        setSubmitting(false);
+      }
     }
   };
 
@@ -186,7 +195,7 @@ export function SurveyView({ poll, onBack, onVote, hasVoted }: SurveyViewProps) 
                     );
                   })}
                   <div className={`dynamic-sum ${dynamicSum === 100 ? 'valid' : dynamicSum > 100 ? 'over' : ''}`}>
-                    Total: {dynamicSum}% {dynamicSum === 100 ? '' : dynamicSum > 100 ? '(over 100!)' : `(${100 - dynamicSum}% remaining)`}
+                    Total: {dynamicSum}% {dynamicSum === 100 ? '' : dynamicSum > 100 ? '' : `(${100 - dynamicSum}% remaining)`}
                   </div>
                 </div>
               )}
@@ -241,19 +250,36 @@ export function SurveyView({ poll, onBack, onVote, hasVoted }: SurveyViewProps) 
                 </div>
               )}
 
-              {/* Standard single-pick options */}
+              {/* Standard options (single-pick or multi-select) */}
               {!isDynamic && (
                 <div className="question-options">
+                  {question.allowMultiple && !submitted && (
+                    <span className="multi-select-hint">
+                      Select up to {question.maxSelections} options
+                    </span>
+                  )}
                   {question.options.map((option) => {
-                    const isSelected = !isOther && answers[question.id] === option.id;
+                    const isMulti = question.allowMultiple;
+                    const selectedMulti = multiAnswers[question.id] ?? [];
+                    const isSelected = isMulti
+                      ? selectedMulti.includes(option.id)
+                      : (!isOther && answers[question.id] === option.id);
                     const pct = totalVotes > 0 ? (option.votes / totalVotes) * 100 : 0;
+                    const atMax = isMulti && selectedMulti.length >= question.maxSelections && !isSelected;
 
                     return (
                       <button
                         key={option.id}
-                        className={`survey-option ${isSelected ? 'selected' : ''} ${submitted ? 'voted' : ''}`}
+                        className={`survey-option ${isSelected ? 'selected' : ''} ${submitted ? 'voted' : ''} ${atMax ? 'disabled' : ''}`}
                         onClick={() => {
-                          if (!submitted) {
+                          if (submitted || atMax) return;
+                          if (isMulti) {
+                            const current = multiAnswers[question.id] ?? [];
+                            const updated = current.includes(option.id)
+                              ? current.filter((id) => id !== option.id)
+                              : [...current, option.id];
+                            setMultiAnswers({ ...multiAnswers, [question.id]: updated });
+                          } else {
                             setAnswers({ ...answers, [question.id]: option.id });
                             setOtherSelected({ ...otherSelected, [question.id]: false });
                           }
@@ -262,6 +288,11 @@ export function SurveyView({ poll, onBack, onVote, hasVoted }: SurveyViewProps) 
                       >
                         {submitted && (
                           <div className="survey-option-bar" style={{ width: `${pct}%` }} />
+                        )}
+                        {isMulti && !submitted && (
+                          <span className={`multi-check ${isSelected ? 'checked' : ''}`}>
+                            {isSelected ? '✓' : ''}
+                          </span>
                         )}
                         <span className="survey-option-text">{option.text}</span>
                         {submitted && (
@@ -339,7 +370,7 @@ export function SurveyView({ poll, onBack, onVote, hasVoted }: SurveyViewProps) 
       {!submitted && (
         <div className="survey-submit-area">
           <span className="survey-progress">
-            {Object.keys(answers).length + Object.keys(freeTextAnswers).filter((k) => freeTextAnswers[k]?.trim()).length + Object.keys(otherTextAnswers).filter((k) => otherSelected[k] && otherTextAnswers[k]?.trim()).length + Object.keys(dynamicAnswers).filter((k) => getDynamicSum(k) === 100).length} of {poll.questions.length} answered
+            {Object.keys(answers).length + Object.keys(multiAnswers).filter((k) => (multiAnswers[k] ?? []).length >= 1).length + Object.keys(freeTextAnswers).filter((k) => freeTextAnswers[k]?.trim()).length + Object.keys(otherTextAnswers).filter((k) => otherSelected[k] && otherTextAnswers[k]?.trim()).length + Object.keys(dynamicAnswers).filter((k) => getDynamicSum(k) === 100).length} of {poll.questions.length} answered
           </span>
           <button
             className="survey-submit-btn"
